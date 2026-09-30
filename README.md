@@ -2,7 +2,14 @@
 
 Bản tùy biến của [system_optimization-v2.sh](https://github.com/bibicadotnet/Docker-LCMP-Multisite-WordPress-Minimal/blob/main/system_optimization-v2.sh) (từ [bibicadotnet/Docker-LCMP-Multisite-WordPress-Minimal](https://github.com/bibicadotnet/Docker-LCMP-Multisite-WordPress-Minimal)).
 
-**Khác biệt duy nhất so với bản gốc:** không tắt IPv6 (đã bỏ block sysctl `disable_ipv6`). Mọi tối ưu khác (DNS, BBR, swap/sysctl theo RAM, Docker daemon.json, backup/restore) giữ nguyên như bản gốc.
+**Khác biệt so với bản gốc:**
+
+- Không tắt IPv6 (đã bỏ block sysctl `disable_ipv6`).
+- Hỗ trợ Debian 13 (trixie): tự tạo `/etc/sysctl.conf` và symlink `/etc/sysctl.d/99-sysctl.conf` nếu thiếu (Debian 13 đã bỏ cả hai), để bước sysctl không lỗi và cấu hình được nạp lại sau reboot.
+- Sửa bước cập nhật OS: bản gốc lọc theo tên suite (`noble-updates` → `noble`) nên không bao giờ nâng cấp gói nào. Nay lọc theo Label của repo trong `apt-get -s upgrade` (Ubuntu/Debian/Debian-Security/Debian Backports), vẫn bỏ qua repo bên thứ ba như Docker.
+- Chỉ `clear` khi chạy trong terminal, để chạy được qua `ssh host 'cmd'` (không có TTY/`TERM`).
+
+Mọi tối ưu khác (DNS, BBR, swap/sysctl theo RAM, Docker daemon.json, backup/restore) giữ nguyên như bản gốc.
 
 ## Sử dụng
 

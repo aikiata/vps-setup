@@ -1,7 +1,8 @@
 #!/bin/bash
 
 set -euo pipefail
-clear
+# Chỉ clear khi chạy trong terminal (tránh lỗi khi chạy qua ssh không có TTY/TERM)
+if [ -t 1 ]; then clear || true; fi
 
 # ========================================
 # KIỂM TRA HỆ THỐNG
@@ -62,7 +63,11 @@ show_info() {
 
     # Hiển thị tất cả giá trị từ sysctl.conf (bỏ dòng trắng và comment)
     echo "[sysctl.conf]"
-    grep -v '^\s*#' /etc/sysctl.conf | grep -v '^\s*$'
+    if [ -f /etc/sysctl.conf ]; then
+        grep -v '^\s*#' /etc/sysctl.conf | grep -v '^\s*$' || true
+    else
+        echo "Không có /etc/sysctl.conf"
+    fi
     echo
 
     # Cấu hình Docker
@@ -271,20 +276,13 @@ chattr +i /etc/resolv.conf
 # CẬP NHẬT HỆ ĐIỀU HÀNH
 # ========================================
 
-# Chỉ cập nhật OS Ubuntu
+# Chỉ cập nhật gói từ repo chính thức của OS (Ubuntu/Debian), bỏ qua repo bên thứ ba (Docker, ...)
 apt-get update -y
 
-mapfile -t upgradable_packages < <(apt list --upgradable 2>/dev/null | tail -n +2)
-declare -a packages_to_upgrade=()
-
-for pkg_info in "${upgradable_packages[@]}"; do
-    pkg=$(echo "$pkg_info" | cut -d/ -f1)
-    repo=$(echo "$pkg_info" | cut -d/ -f2 | awk '{print $1}' | cut -d- -f1)
-    
-    if [[ "$repo" =~ ^(ubuntu|updates|security|backports)$ ]]; then
-        packages_to_upgrade+=("$pkg")
-    fi
-done
+# Dòng mô phỏng có dạng: Inst <pkg> [<cũ>] (<mới> <Label>:<Version>/<Suite> [<arch>])
+# Label của repo chính thức: Ubuntu, Debian, Debian-Security, Debian Backports
+mapfile -t packages_to_upgrade < <(apt-get -s upgrade 2>/dev/null \
+    | awk '/^Inst / && / \([^ ]+ (Ubuntu|Debian)[^:]*:/ {print $2}')
 
 if [ ${#packages_to_upgrade[@]} -gt 0 ]; then
     apt-get install --no-install-recommends --only-upgrade -y "${packages_to_upgrade[@]}"
@@ -306,6 +304,14 @@ timedatectl set-timezone Asia/Ho_Chi_Minh
 apt-get install -y chrony
 systemctl start chrony
 systemctl enable chrony
+
+# Debian 13+ không còn /etc/sysctl.conf và symlink /etc/sysctl.d/99-sysctl.conf
+# Tạo lại để sed/sysctl -p hoạt động và cấu hình được nạp khi khởi động
+touch /etc/sysctl.conf
+if [ ! -e /etc/sysctl.d/99-sysctl.conf ]; then
+    mkdir -p /etc/sysctl.d
+    ln -s ../sysctl.conf /etc/sysctl.d/99-sysctl.conf
+fi
 
 # Tối ưu hóa TCP BBR
 remove_sysctl_lines /etc/sysctl.conf "net.core.default_qdisc" "net.ipv4.tcp_congestion_control"
